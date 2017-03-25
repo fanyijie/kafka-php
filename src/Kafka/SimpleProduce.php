@@ -11,7 +11,6 @@
 // +---------------------------------------------------------------------------
 // | $_SWANBR_WEB_DOMAIN_$
 // +---------------------------------------------------------------------------
-
 namespace Kafka;
 
 /**
@@ -25,13 +24,11 @@ namespace Kafka;
 * @author $_SWANBR_AUTHOR_$
 +------------------------------------------------------------------------------
 */
-
-class Produce
+class SimpleProduce
 {
     // {{{ consts
     // }}}
     // {{{ members
-
     /**
      * client
      *
@@ -39,15 +36,34 @@ class Produce
      * @access private
      */
     private $client = null;
-
     /**
-     * send message options cache
+     * encoder
      *
-     * @var array
+     * @var mixed
      * @access private
      */
-    private $payload = array();
-
+    private $encoder = null;
+    /**
+     * decoder
+     *
+     * @var mixed
+     * @access private
+     */
+    private $decoder = null;
+    /**
+     * topic
+     *
+     * @var string
+     * @access private
+     */
+    private $topic = '';
+    /**
+     * partition
+     *
+     * @var string
+     * @access private
+     */
+    private $partition = '';
     /**
      * default the server will not send any response
      *
@@ -55,7 +71,6 @@ class Produce
      * @access private
      */
     private $requiredAck = 0;
-
     /**
      * default timeout is 100ms
      *
@@ -63,7 +78,6 @@ class Produce
      * @access private
      */
     private $timeout = 100;
-
     /**
      * produce instance
      *
@@ -71,11 +85,9 @@ class Produce
      * @access private
      */
     private static $instance = null;
-
     // }}}
     // {{{ functions
     // {{{ public function static getInstance()
-
     /**
      * set send messages
      *
@@ -90,13 +102,10 @@ class Produce
         if (is_null(self::$instance)) {
             self::$instance = new self($hostList, $timeout, $kafkaHostList);
         }
-
         return self::$instance;
     }
-
     // }}}
     // {{{ public function __construct()
-
     /**
      * __construct
      *
@@ -116,34 +125,31 @@ class Produce
         }
         $this->client = new \Kafka\Client($metadata);
     }
-
     // }}}
-    // {{{ public function setMessages()
-
+    // {{{ public function setTopic()
     /**
-     * set send messages
+     * set topic
      *
      * @access public
      * @param $topicName
      * @param int $partitionId
-     * @param array $messages
      * @return Produce
      */
-    public function setMessages($topicName, $partitionId = 0, $messages = array())
+    public function setTopic($topicName, $partitionId = 0)
     {
-        if (isset($this->payload[$topicName][$partitionId])) {
-            $this->payload[$topicName][$partitionId] =
-                    array_merge($this->payload[$topicName][$partitionId], $messages);
-        } else {
-            $this->payload[$topicName][$partitionId] = $messages;
+        $this->topic = $topicName;
+        $this->partition = $partitionId;
+        $host = $this->client->getHostByPartition($topicName, $partitionId);
+        $stream = $this->client->getStream($host);
+        $conn   = $stream['stream'];
+        $this->encoder = new \Kafka\Protocol\Encoder($conn);
+        if ((int) $this->requiredAck !== 0) { // get broker response
+            $this->decoder = new \Kafka\Protocol\Decoder($conn);
         }
-
         return $this;
     }
-
     // }}}
     // {{{ public function setRequireAck()
-
     /**
      * set request mode
      * This field indicates how many acknowledgements the servers should receive
@@ -165,13 +171,10 @@ class Produce
         if ($ack >= -1) {
             $this->requiredAck = (int) $ack;
         }
-
         return $this;
     }
-
     // }}}
     // {{{ public function setTimeOut()
-
     /**
      * set request timeout
      *
@@ -186,51 +189,29 @@ class Produce
         }
         return $this;
     }
-
     // }}}
     // {{{ public function send()
-
     /**
      * send message to broker
      *
      * @access public
-     * @return bool|array
+     * @return bool|array $messages
      */
-    public function send()
+    public function send($messages)
     {
-        $data = $this->_formatPayload();
-        if (empty($data)) {
-            return false;
+        if (empty($this->topic) || empty($messages)) {
+            return;
         }
-
-        $responseData = array();
-        foreach ($data as $host => $requestData) {
-            $stream = $this->client->getStream($host);
-            $conn   = $stream['stream'];
-            $encoder = new \Kafka\Protocol\Encoder($conn);
-            $encoder->produceRequest($requestData);
-            if ((int) $this->requiredAck !== 0) { // get broker response
-                $decoder = new \Kafka\Protocol\Decoder($conn);
-                $response = $decoder->produceResponse();
-                foreach ($response as $topicName => $info) {
-                    if (!isset($responseData[$topicName])) {
-                        $responseData[$topicName] = $info;
-                    } else {
-                        $responseData[$topicName] = array_merge($info, $responseData[$topicName]);
-                    }
-                }
-            }
-
-            $this->client->freeStream($stream['key']);
+        $requestData = $this->_formatPayload($messages);
+        $this->encoder->produceRequest($requestData);
+        $response = array();
+        if ((int) $this->requiredAck !== 0) { // get broker response
+            $response = $this->decoder->produceResponse();
         }
-
-        $this->payload = array();
-        return $responseData;
+        return $response;
     }
-
     // }}}
     // {{{ public function getClient()
-
     /**
      * get client object
      *
@@ -241,7 +222,6 @@ class Produce
     {
         return $this->client;
     }
-
     /**
      * passthru method to client for setting stream options
      *
@@ -252,10 +232,8 @@ class Produce
     {
         $this->client->setStreamOptions($options);
     }
-
     // }}}
     // {{{ public function getAvailablePartitions()
-
     /**
      * get available partition
      *
@@ -263,68 +241,46 @@ class Produce
      * @param $topicName
      * @return array
      */
-    public function getAvailablePartitions($topicName)
+    public function getAvailablePartitions()
     {
-        $topicDetail = $this->client->getTopicDetail($topicName);
+        if (empty($this->topic)) {
+            return array();
+        }
+        $topicDetail = $this->client->getTopicDetail($this->topic);
         if (is_array($topicDetail) && isset($topicDetail['partitions'])) {
             $topicPartitiions = array_keys($topicDetail['partitions']);
         } else {
             $topicPartitiions = array();
         }
-
         return $topicPartitiions;
     }
-
     // }}}
     // {{{ private function _formatPayload()
-
     /**
      * format payload array
      *
      * @access private
      * @return array
      */
-    private function _formatPayload()
+    private function _formatPayload($messages)
     {
-        if (empty($this->payload)) {
-            return array();
-        }
-
-        $data = array();
-        foreach ($this->payload as $topicName => $partitions) {
-            foreach ($partitions as $partitionId => $messages) {
-                $host = $this->client->getHostByPartition($topicName, $partitionId);
-                $data[$host][$topicName][$partitionId] = $messages;
-            }
-        }
-
         $requestData = array();
-        foreach ($data as $host => $info) {
-            $topicData = array();
-            foreach ($info as $topicName => $partitions) {
-                $partitionData = array();
-                foreach ($partitions as $partitionId => $messages) {
-                    $partitionData[] = array(
-                        'partition_id' => $partitionId,
-                        'messages'     => $messages,
-                    );
-                }
-                $topicData[] = array(
-                    'topic_name' => $topicName,
-                    'partitions' => $partitionData,
-                );
-            }
-
-            $requestData[$host] = array(
-                'required_ack' => $this->requiredAck,
-                'timeout'      => $this->timeout,
-                'data' => $topicData,
-            );
-        }
-
+        $topicData = array();
+        $partitionData[] = array(
+            'partition_id' => $this->partition,
+            'messages'     => $messages,
+        );
+        $topicData[] = array(
+            'topic_name' => $this->topic,
+            'partitions' => $partitionData,
+        );
+        $requestData = array(
+            'required_ack' => $this->requiredAck,
+            'timeout'      => $this->timeout,
+            'data' => $topicData,
+        );
         return $requestData;
     }
-
     // }}}
     // }}}
 }

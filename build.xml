@@ -13,11 +13,11 @@
     </target>
 
     <target name="get-cs-fixer" depends="clean" description="Get coding standards fixer">
-        <get src="http://cs.sensiolabs.org/get/php-cs-fixer.phar" dest="${basedir}/php-cs-fixer.phar"/>
+        <get src="https://github.com/FriendsOfPHP/PHP-CS-Fixer/releases/download/v2.1.0/php-cs-fixer.phar" dest="${basedir}/php-cs-fixer.phar"/>
     </target>
 
     <target name="get-cs-fixer-local" depends="clean" description="Get coding standards fixer" unless="fixer-exists">
-        <get src="http://cs.sensiolabs.org/get/php-cs-fixer.phar" dest="${basedir}/php-cs-fixer.phar"/>
+        <get src="https://github.com/FriendsOfPHP/PHP-CS-Fixer/releases/download/v2.1.0/php-cs-fixer.phar" dest="${basedir}/php-cs-fixer.phar"/>
     </target>
 
     <target name="composer-install" description="Installs dependencies via composer install">
@@ -27,12 +27,6 @@
             </exec>
             <exec executable="composer" failonerror="true">
                 <arg value="--version" />
-            </exec>
-            <exec executable="composer" failonerror="true">
-                <env key="COMPOSER_ROOT_VERSION" value="dev-master"/>
-                <arg value="install" />
-                <arg value="--dev" />
-                <arg value="--prefer-source" />
             </exec>
         </sequential>
     </target>

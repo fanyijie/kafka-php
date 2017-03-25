@@ -67,7 +67,8 @@ class EncoderTest extends \PHPUnit_Framework_TestCase
      * getData
      *
      * @access public
-     * @return void
+     * @param $len
+     * @return string
      */
     public function getData($len)
     {
@@ -112,13 +113,13 @@ class EncoderTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals(\bin2hex($expect), '000000181f8b08000000000000032b492d2e01000c7e7fd804000000');
 
         try {
-            $expect = Encoder::encodeString('test', Encoder::PACK_INT32, Encoder::COMPRESSION_SNAPPY);
+            Encoder::encodeString('test', Encoder::PACK_INT32, Encoder::COMPRESSION_SNAPPY);
         } catch (\Kafka\Exception\NotSupported $e) {
             $this->assertSame('SNAPPY compression not yet implemented', $e->getMessage());
         }
 
         try {
-            $expect = Encoder::encodeString('test', Encoder::PACK_INT32, 4);
+            Encoder::encodeString('test', Encoder::PACK_INT32, 4);
         } catch (\Kafka\Exception\NotSupported $e) {
             $this->assertSame('Unknown compression flag: 4', $e->getMessage());
         }
@@ -212,7 +213,7 @@ class EncoderTest extends \PHPUnit_Framework_TestCase
         );
         try {
             Encoder::encodeProcudePartion($data, Encoder::COMPRESSION_NONE);
-        } catch(\Kafka\Exception\Protocol $e) {
+        } catch (\Kafka\Exception\Protocol $e) {
             $this->assertSame('given produce data invalid. `partition_id` is undefined.', $e->getMessage());
         }
 
@@ -221,7 +222,7 @@ class EncoderTest extends \PHPUnit_Framework_TestCase
         );
         try {
             Encoder::encodeProcudePartion($data, Encoder::COMPRESSION_NONE);
-        } catch(\Kafka\Exception\Protocol $e) {
+        } catch (\Kafka\Exception\Protocol $e) {
             $this->assertSame('given produce data invalid. `messages` is undefined.', $e->getMessage());
         }
     }
@@ -301,7 +302,7 @@ class EncoderTest extends \PHPUnit_Framework_TestCase
         );
         try {
             Encoder::encodeFetchPartion($data);
-        } catch(\Kafka\Exception\Protocol $e) {
+        } catch (\Kafka\Exception\Protocol $e) {
             $this->assertSame('given fetch data invalid. `partition_id` is undefined.', $e->getMessage());
         }
 
@@ -378,7 +379,7 @@ class EncoderTest extends \PHPUnit_Framework_TestCase
         );
         try {
             Encoder::encodeOffsetPartion($data);
-        } catch(\Kafka\Exception\Protocol $e) {
+        } catch (\Kafka\Exception\Protocol $e) {
             $this->assertSame('given offset data invalid. `partition_id` is undefined.', $e->getMessage());
         }
     }
@@ -451,7 +452,7 @@ class EncoderTest extends \PHPUnit_Framework_TestCase
         );
         try {
             Encoder::encodeCommitOffsetPartion($data);
-        } catch(\Kafka\Exception\Protocol $e) {
+        } catch (\Kafka\Exception\Protocol $e) {
             $this->assertSame('given commit offset data invalid. `offset` is undefined.', $e->getMessage());
         }
 
@@ -460,7 +461,7 @@ class EncoderTest extends \PHPUnit_Framework_TestCase
         );
         try {
             Encoder::encodeCommitOffsetPartion($data);
-        } catch(\Kafka\Exception\Protocol $e) {
+        } catch (\Kafka\Exception\Protocol $e) {
             $this->assertSame('given commit offset data invalid. `partition_id` is undefined.', $e->getMessage());
         }
     }
@@ -532,7 +533,7 @@ class EncoderTest extends \PHPUnit_Framework_TestCase
         );
         try {
             Encoder::encodeFetchOffsetPartion($data);
-        } catch(\Kafka\Exception\Protocol $e) {
+        } catch (\Kafka\Exception\Protocol $e) {
             $this->assertSame('given fetch offset data invalid. `partition_id` is undefined.', $e->getMessage());
         }
     }
@@ -635,7 +636,6 @@ class EncoderTest extends \PHPUnit_Framework_TestCase
     {
         $encoder = new \Kafka\Protocol\Encoder($this->stream);
 
-        $data = array();
         try {
             $encoder->metadataRequest(null);
         } catch (\Kafka\Exception\Protocol $e) {

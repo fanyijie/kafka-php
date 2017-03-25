@@ -64,7 +64,7 @@ class DecoderTest extends \PHPUnit_Framework_TestCase
      * getData
      *
      * @access public
-     * @return void
+     * @param $data
      */
     public function setData($data)
     {
@@ -142,10 +142,75 @@ class DecoderTest extends \PHPUnit_Framework_TestCase
         $this->setData(Decoder::Khex2bin('00000000'));
         $decoder = new \Kafka\Protocol\Decoder($this->stream);
         try {
-            $actual  = $decoder->produceResponse();
+            $decoder->produceResponse();
         } catch (\Kafka\Exception\Protocol $e) {
             $this->assertSame('produce response invalid.', $e->getMessage());
         }
+    }
+
+    // }}}
+    //{{{ public function testProduceResponseWithErrorCodes()
+
+    /**
+     * testProduceResponseWithErrorCodes
+     *
+     * @access public
+     * @return void
+     */
+    public function testProduceResponseWithErrorCodes()
+    {
+        // Break down of our encoded data
+        // '00000047 00000000 00000002 0005 7465737436 00000002 00000002 000A 0000000000000034 00000005 FFFF 0000000000000028 0004 74657374 00000001 00000000 0000 000000000000005f'
+
+        // 00000047  = data length = 47 bytes
+        // 00000000 = ??
+        // 00000002 = topic count: "2"
+
+        // -- first topic --
+        // 0005 = topic name length: 5 bytes
+        // 7465737436 = "test6"
+        // 00000002 = partition count: "2"
+        // -- first topic - first partition --
+        // 00000002 = partition id: "2"
+        // 000A = error code: "10"
+        // 0000000000000034 = partition offset: "52"
+        // -- first topic - second partition --
+        // 00000005 = partition id: "5"
+        // 0000 = error code: "-1"
+        // 0000000000000028 = offset: "40"
+
+        // -- 2nd topic --
+        // 0004 = topic name length: 4 bytes
+        // 74657374 = "test"
+        // 00000001 = partition count: "1"
+        // -- 2nd topic - first partition --
+        // 00000000 = partition id: "0"
+        // 0000 = error code: "0"
+        // 000000000000005f = offset: "95"
+
+        $this->setData(Decoder::Khex2bin('000000470000000000000002000574657374360000000200000002000A000000000000003400000005FFFF000000000000002800047465737400000001000000000000000000000000005f'));
+        $decoder = new \Kafka\Protocol\Decoder($this->stream);
+        $actual  = $decoder->produceResponse();
+
+        $expect = array(
+            'test6' => array(
+                2 => array(
+                    'errCode' => 10,
+                    'offset'  => 52,
+                ),
+                5 => array(
+                    'errCode' => -1,
+                    'offset'  => 40,
+                ),
+            ),
+            'test' => array(
+                0 => array(
+                    'errCode' => 0,
+                    'offset'  => 95,
+                ),
+            ),
+        );
+        $this->assertEquals($expect, $actual);
     }
 
     // }}}
@@ -209,7 +274,7 @@ class DecoderTest extends \PHPUnit_Framework_TestCase
         $this->setData(Decoder::Khex2bin('00000000'));
         $decoder = new \Kafka\Protocol\Decoder($this->stream);
         try {
-            $actual  = $decoder->metadataResponse();
+            $decoder->metadataResponse();
         } catch (\Kafka\Exception\Protocol $e) {
             $this->assertSame('metaData response invalid.', $e->getMessage());
         }
@@ -255,7 +320,7 @@ class DecoderTest extends \PHPUnit_Framework_TestCase
         $this->setData(Decoder::Khex2bin('00000000'));
         $decoder = new \Kafka\Protocol\Decoder($this->stream);
         try {
-            $actual  = $decoder->offsetResponse();
+            $decoder->offsetResponse();
         } catch (\Kafka\Exception\Protocol $e) {
             $this->assertSame('offset response invalid.', $e->getMessage());
         }
@@ -300,7 +365,7 @@ class DecoderTest extends \PHPUnit_Framework_TestCase
         $this->setData(Decoder::Khex2bin('00000000'));
         $decoder = new \Kafka\Protocol\Decoder($this->stream);
         try {
-            $actual  = $decoder->commitOffsetResponse();
+            $decoder->commitOffsetResponse();
         } catch (\Kafka\Exception\Protocol $e) {
             $this->assertSame('commit offset response invalid.', $e->getMessage());
         }
@@ -334,6 +399,99 @@ class DecoderTest extends \PHPUnit_Framework_TestCase
     }
 
     // }}}
+    //{{{ public function testFetchOffsetResponseErrorCode3()
+
+    public function testFetchOffsetResponseErrorCode3()
+    {
+        // 00000023  = data length = 35 bytes
+        // 00000000 = ??
+        // 00000001 = topic count: "1"
+        // 0005 = topic name length: 5 bytes
+        // 7465737436 = "test6"
+        // 00000001 = partition count: "1"
+        // 00000002 = partition id: "2"
+        // 0000000000000002 = partition offset: "2"
+        // 0000 = metadata length: "0"
+        // 0003 = error code = 3
+        $this->setData(Decoder::Khex2bin('000000230000000000000001000574657374360000000100000002000000000000000200000003'));
+        $decoder = new \Kafka\Protocol\Decoder($this->stream);
+        $actual  = $decoder->fetchOffsetResponse();
+
+        $expect = array(
+            'test6' => array(
+                2 => array(
+                    'offset'   => 2,
+                    'metadata' => '',
+                    'errCode'  => 3,
+                ),
+            ),
+        );
+        $this->assertEquals($expect, $actual);
+    }
+
+    // }}}
+    //{{{ public function testFetchOffsetResponseErrorCode15()
+
+    public function testFetchOffsetResponseErrorCode15()
+    {
+        // 00000023  = data length = 35 bytes
+        // 00000000 = ??
+        // 00000001 = topic count: "1"
+        // 0005 = topic name length: 5 bytes
+        // 7465737436 = "test6"
+        // 00000001 = partition count: "1"
+        // 00000002 = partition id: "2"
+        // 0000000000000002 = partition offset: "2"
+        // 0000 = metadata length: "0"
+        // 000F = error code = 15
+        $this->setData(Decoder::Khex2bin('00000023000000000000000100057465737436000000010000000200000000000000020000000F'));
+        $decoder = new \Kafka\Protocol\Decoder($this->stream);
+        $actual  = $decoder->fetchOffsetResponse();
+
+        $expect = array(
+            'test6' => array(
+                2 => array(
+                    'offset'   => 2,
+                    'metadata' => '',
+                    'errCode'  => 15,
+                ),
+            ),
+        );
+        $this->assertEquals($expect, $actual);
+    }
+
+    // }}}
+    //{{{ public function testFetchOffsetResponseUnexpectedErrorCode()
+
+    public function testFetchOffsetResponseUnexpectedErrorCode()
+    {
+        // 00000023  = data length = 35 bytes
+        // 00000000 = ??
+        // 00000001 = topic count: "1"
+        // 0005 = topic name length: 5 bytes
+        // 7465737436 = "test6"
+        // 00000001 = partition count: "1"
+        // 00000002 = partition id: "2"
+        // 0000000000000002 = partition offset: "2"
+        // 0000 = metadata length: "0"
+        // FFFF = error code = -1
+        $this->setData(Decoder::Khex2bin('00000023000000000000000100057465737436000000010000000200000000000000020000FFFF'));
+        $decoder = new \Kafka\Protocol\Decoder($this->stream);
+        $actual  = $decoder->fetchOffsetResponse();
+
+        $expect = array(
+            'test6' => array(
+                2 => array(
+                    'offset'   => 2,
+                    'metadata' => '',
+                    'errCode'  => -1,
+                ),
+            ),
+        );
+        $this->assertEquals($expect, $actual);
+    }
+
+    // }}}
     //{{{ public function testFetchOffsetResponseNotData()
 
     /**
@@ -347,7 +505,7 @@ class DecoderTest extends \PHPUnit_Framework_TestCase
         $this->setData(Decoder::Khex2bin('00000000'));
         $decoder = new \Kafka\Protocol\Decoder($this->stream);
         try {
-            $actual  = $decoder->fetchOffsetResponse();
+            $decoder->fetchOffsetResponse();
         } catch (\Kafka\Exception\Protocol $e) {
             $this->assertSame('fetch offset response invalid.', $e->getMessage());
         }
@@ -364,7 +522,7 @@ class DecoderTest extends \PHPUnit_Framework_TestCase
      */
     public function testGetError()
     {
-        $this->assertEquals('Unknown error', Decoder::getError(19));
+        $this->assertEquals('Unknown error', Decoder::getError(36));
     }
 
     // }}}

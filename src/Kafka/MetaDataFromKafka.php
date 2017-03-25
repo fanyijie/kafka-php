@@ -50,7 +50,7 @@ class MetaDataFromKafka implements ClusterMetaData
     private $hostList;
 
     /**
-     * List of all kafka brokers
+     * Cached list of all kafka brokers
      *
      * @var array
      * @access private
@@ -58,7 +58,7 @@ class MetaDataFromKafka implements ClusterMetaData
     private $brokers = array();
 
     /**
-     * List of all loaded topic metadata
+     * Cached list of all loaded topic metadata
      *
      * @var array
      * @access private
@@ -108,7 +108,7 @@ class MetaDataFromKafka implements ClusterMetaData
      */
     public function listBrokers()
     {
-        if ($this->brokers === null) {
+        if ($this->brokers === null || count($this->brokers) == 0) {
             $this->loadBrokers();
         }
         return $this->brokers;
@@ -117,12 +117,17 @@ class MetaDataFromKafka implements ClusterMetaData
     // }}}
     // {{{ public function getPartitionState()
 
+    /**
+     * @param string $topicName
+     * @param int $partitionId
+     * @return null
+     */
     public function getPartitionState($topicName, $partitionId = 0)
     {
-        if (!isset( $this->topics[$topicName] ) ) {
+        if (!isset($this->topics[$topicName])) {
             $this->loadTopicDetail(array($topicName));
         }
-        if ( isset( $this->topics[$topicName]['partitions'][$partitionId] ) ) {
+        if (isset($this->topics[$topicName]['partitions'][$partitionId])) {
             return $this->topics[$topicName]['partitions'][$partitionId];
         } else {
             return null;
@@ -140,10 +145,10 @@ class MetaDataFromKafka implements ClusterMetaData
      */
     public function getTopicDetail($topicName)
     {
-        if (!isset( $this->topics[$topicName] ) ) {
+        if (!isset($this->topics[$topicName])) {
             $this->loadTopicDetail(array($topicName));
         }
-        if (isset( $this->topics[$topicName] ) ) {
+        if (isset($this->topics[$topicName])) {
             return $this->topics[$topicName];
         } else {
             return array();
@@ -164,6 +169,9 @@ class MetaDataFromKafka implements ClusterMetaData
     // }}}
     // {{{ private function loadTopicDetail()
 
+    /**
+     * @param array $topics
+     */
     private function loadTopicDetail(array $topics)
     {
         if ($this->client === null) {
@@ -193,6 +201,19 @@ class MetaDataFromKafka implements ClusterMetaData
         } else {
             throw new \Kafka\Exception('Could not connect to any kafka brokers');
         }
+    }
+
+    // }}}
+    // {{{ public function refreshMetadata()
+
+    /**
+     * Clear internal caches
+     * @return null
+     */
+    public function refreshMetadata()
+    {
+        $this->brokers = array();
+        $this->topics = array();
     }
 
     // }}}
